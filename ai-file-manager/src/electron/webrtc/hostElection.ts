@@ -1,6 +1,7 @@
 // src/webrtc/hostElection.ts
 import { getLanDevices, setHostRole } from "./presence.js";
 import { log } from "../logger.js";
+import { startPeerServer, stopPeerServer } from "./peerServer.js";
 
 const ELECTION_INTERVAL = 3000; // ms
 
@@ -39,7 +40,7 @@ export function startHostElection(getSelfUptime: () => number) {
 
     const shouldHost = shouldBecomeHost(selfUptime, devices);
 
-    // ───── Become host ─────
+    // Become host 
     if (shouldHost && !isHost) {
       isHost = true;
       log("info", "Becoming signaling host");
@@ -47,7 +48,7 @@ export function startHostElection(getSelfUptime: () => number) {
       startPeerServer();
     }
 
-    // ───── Step down ─────
+    // Step down
     if (!shouldHost && isHost) {
       isHost = false;
       log("info", "Stepping down as host");
@@ -67,16 +68,4 @@ export function stopHostElection() {
   }
 }
 
-/**
- * PeerJS server lifecycle hooks
- * (implement next)
- */
-function startPeerServer() {
-  log("info", "Starting PeerJS signaling server");
-  // TODO: start PeerServer here
-}
 
-function stopPeerServer() {
-  log("info", "Stopping PeerJS signaling server");
-  // TODO: stop PeerServer here
-}
