@@ -5,17 +5,21 @@ import { isDev } from "./util.js";
 import { getPreloadPath } from "./pathResolver.js";
 import { deleteRoot, getIndexedRoots, initDB, resetDB } from "./db/db.js";
 import { runAgent } from "./api/functionCall.js";
-import { getLanDevices, startLanPresence } from "./webrtc/presence.js";
+import { getLanDevices, getSelfHostInfo, isSelfHost, startLanPresence } from "./webrtc/presence.js";
 import { loadSettings, saveSettings, getSettings } from "./settings.js";
 import { log } from "./logger.js";
-import { manualScan } from "./db/scanner.js";
 import { reconcileRoots } from "./db/reconcileRoots.js";
 import { startHostElection } from "./webrtc/hostElection.js";
-
+import os from "os"
+import { createPeerClient } from "./webrtc/peerClient.js";
 // Disable GPU
 app.disableHardwareAcceleration();
 app.commandLine.appendSwitch("force-device-scale-factor", "1");
 // Menu.setApplicationMenu(null);
+
+function getDeviceId() {
+  return os.hostname();
+}
 
 app.whenReady().then(async () => {
   // Settings 
@@ -37,6 +41,9 @@ app.whenReady().then(async () => {
   startHostElection(() => {
     return Math.floor(process.uptime());
   });
+
+  
+
 
 
   //Window 
@@ -103,6 +110,14 @@ app.whenReady().then(async () => {
   });
 
 
+});
+
+ipcMain.handle("lan:getHost", () => {
+  if (isSelfHost()) {
+    return getSelfHostInfo();
+  }
+
+  return getLanDevices().find(d => d.role === "host") ?? null;
 });
 
 

@@ -19,7 +19,6 @@ export function startPeerServer() {
   httpServer = createServer(app);
 
   peerServer = ExpressPeerServer(httpServer, {
-    path: PEER_PATH,
     allow_discovery: true,
   });
 

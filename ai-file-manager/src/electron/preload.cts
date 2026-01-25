@@ -29,6 +29,7 @@ contextBridge.exposeInMainWorld("rescanAPI", {
 
 contextBridge.exposeInMainWorld("lanAPI", {
   getDevices: () => ipcRenderer.invoke("lan:getDevices"),
+  getHost: () => ipcRenderer.invoke("lan:getHost"),
 });
 
 contextBridge.exposeInMainWorld("fsAPI", {

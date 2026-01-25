@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Sidebar from "./componants/sideBar";
 import MainContent from "./componants/mainContent";
 import FloatingTextBar from "./componants/floatingTextBar";
 import FilesScreen from "./screens/fileScreen";
 import TerminalLogger from "./componants/terminalLogger";
+import { startPeerClient } from "./componants/peerClient";
 
 function App() {
   const [currentView, setCurrentView] = useState<
@@ -11,6 +12,34 @@ function App() {
   >("overview");
 
   const [aiResult, setAIResult] = useState<any>(null);
+
+  //peerjs Client
+  useEffect(() => {
+    console.log("[PeerEffect] mounted");
+    let started = false;
+
+    const interval = setInterval(async () => {
+      //@ts-ignore
+      const devices = await window.lanAPI.getDevices();
+      console.log(devices);
+      //@ts-ignore
+      const host = await window.lanAPI.getHost();
+      console.log("host:",host?.address);
+
+      if (host && !started) {
+        started = true;
+        startPeerClient(
+          crypto.randomUUID(),
+          host.address  //  real host IP
+        );
+        console.log("PeerClient started,Current Host : ",host);
+        clearInterval(interval);
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, []);
+
 
   const handleAIOutput = (response: any) => {
     console.log("[AI RESULT]", response);

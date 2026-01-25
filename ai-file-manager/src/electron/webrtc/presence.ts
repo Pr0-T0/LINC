@@ -9,22 +9,17 @@ const OFFLINE_TIMEOUT = 6000;
 
 const socket = dgram.createSocket("udp4");
 
-// ──────────────────────────────
 // Identity
-// ──────────────────────────────
 export const DEVICE_ID = crypto.randomUUID();
 const START_TIME = Date.now();
 
-// ──────────────────────────────
+
 // Host state (mutable, safe)
-// ──────────────────────────────
 let IS_HOST = false;
 const SIGNAL_PORT = 9000;
 const SIGNAL_PATH = "/peerjs";
 
-// ──────────────────────────────
 // Types
-// ──────────────────────────────
 export type DeviceInfo = {
   deviceId: string;
   address: string;
@@ -37,16 +32,13 @@ export type DeviceInfo = {
 
 const devices = new Map<string, DeviceInfo>();
 
-// ──────────────────────────────
 // Utils
-// ──────────────────────────────
 function getUptimeSeconds() {
   return Math.floor((Date.now() - START_TIME) / 1000);
 }
 
-// ──────────────────────────────
 // Presence Broadcast
-// ──────────────────────────────
+
 function broadcastPresence() {
   const message = JSON.stringify({
     type: "presence",
@@ -62,9 +54,7 @@ function broadcastPresence() {
   socket.send(message, PORT, BROADCAST_ADDR);
 }
 
-// ──────────────────────────────
 // Message Listener
-// ──────────────────────────────
 socket.on("message", (msg, rinfo) => {
   try {
     const data = JSON.parse(msg.toString());
@@ -90,9 +80,7 @@ socket.on("message", (msg, rinfo) => {
   }
 });
 
-// ──────────────────────────────
 // Cleanup Offline Devices
-// ──────────────────────────────
 function cleanupDevices() {
   const now = Date.now();
   for (const [id, info] of devices.entries()) {
@@ -102,11 +90,25 @@ function cleanupDevices() {
   }
 }
 
-// ──────────────────────────────
-// Public API
-// ──────────────────────────────
 
-// 🚀 START ONCE
+//host info broadcast
+export function isSelfHost() {
+  return IS_HOST;
+}
+
+export function getSelfHostInfo() {
+  return IS_HOST 
+    ? {
+      deviceId: DEVICE_ID,
+      address: "127.0.0.1",
+      role:"host",
+      signalPort: SIGNAL_PORT,
+      signalPath: SIGNAL_PATH,
+    } : null;
+}
+
+// Public API
+//  START ONCE
 export function startLanPresence() {
   socket.bind(PORT, () => {
     socket.setBroadcast(true);
@@ -127,9 +129,7 @@ export function getLanDevices(): DeviceInfo[] {
   return Array.from(devices.values());
 }
 
-// ──────────────────────────────
 // Optional: Unicast signaling
-// ──────────────────────────────
 export function sendLanSignal(
   targetDeviceId: string,
   payload: any
