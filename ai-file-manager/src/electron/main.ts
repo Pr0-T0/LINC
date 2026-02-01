@@ -11,11 +11,15 @@ import { log } from "./logger.js";
 import { reconcileRoots } from "./db/reconcileRoots.js";
 import { startHostElection } from "./webrtc/hostElection.js";
 import os from "os"
-import { createPeerClient } from "./webrtc/peerClient.js";
-// Disable GPU
+import { createFileReceiver } from "./tools/fileReceiver.js";
+
+
+
 app.disableHardwareAcceleration();
 app.commandLine.appendSwitch("force-device-scale-factor", "1");
 // Menu.setApplicationMenu(null);
+
+const receiveFile = createFileReceiver(app.getPath("downloads"));
 
 function getDeviceId() {
   return os.hostname();
@@ -120,6 +124,10 @@ ipcMain.handle("lan:getHost", () => {
   return getLanDevices().find(d => d.role === "host") ?? null;
 });
 
+//file receiver
+ipcMain.on("webrtc:file", (_event, msg) => {
+  receiveFile(msg);
+});
 
 // Graceful Shutdown
 app.on("before-quit", () => {

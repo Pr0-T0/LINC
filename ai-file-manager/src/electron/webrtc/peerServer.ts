@@ -29,11 +29,11 @@ export function startPeerServer() {
   });
 
   peerServer.on("connection", (client) => {
-    log("info", `Peer connected: ${client.getId()}`);
+    log("info", `Peer connected to signaling server: ${client.getId()}`);
   });
 
   peerServer.on("disconnect", (client) => {
-    log("info", `Peer disconnected: ${client.getId()}`);
+    log("info", `Peer disconnected from signaling server: ${client.getId()}`);
   });
 }
 

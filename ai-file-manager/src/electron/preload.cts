@@ -14,6 +14,11 @@ contextBridge.exposeInMainWorld("electron", {
       };
     }
   },
+  webrtc: {
+    send: (message: any) => {
+      ipcRenderer.send("webrtc:file", message);
+    },
+  },
 });
 
 

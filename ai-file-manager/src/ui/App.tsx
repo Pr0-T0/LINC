@@ -29,7 +29,7 @@ function App() {
       if (host && !started) {
         started = true;
         startPeerClient(
-          crypto.randomUUID(),
+          "my-PC",
           host.address  //  real host IP
         );
         console.log("PeerClient started,Current Host : ",host);
