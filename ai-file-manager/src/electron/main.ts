@@ -9,6 +9,7 @@ import { runAgent } from "./api/functionCall.js";
 import { getLanDevices, startLanPresence } from "./p2p/presence.js";
 import { loadSettings, saveSettings } from "./settings.js";
 import { log } from "./logger.js";
+import { startHttpServer } from "./p2p/httpServer.js";
 
 // Disable GPU
 app.disableHardwareAcceleration();
@@ -16,15 +17,15 @@ app.commandLine.appendSwitch("force-device-scale-factor", "1");
 // Menu.setApplicationMenu(null);
 
 app.whenReady().then(async () => {
-  // ---------------- Settings ----------------
+  // Settings 
   const settings = loadSettings(); // <-- creates settings.json
   console.log("[Settings] Loaded:", settings);
 
-  // ---------------- Database ----------------
+  // Database 
   initDB();
   console.log("[DB] Ready and connected.");
 
-  // ---------------- File Indexing ----------------
+  // File Indexing 
   const roots = settings.scan.roots;
   console.log("[Scan] Starting file indexing:", roots);
 
@@ -37,10 +38,11 @@ app.whenReady().then(async () => {
     }
   }
 
-  // ---------------- LAN Presence ----------------
+  // LAN Presence 
   startLanPresence();
+  startHttpServer();
 
-  // ---------------- Window ----------------
+  // Window 
   const mainWindow = new BrowserWindow({
     width: 1000,
     height: 700,

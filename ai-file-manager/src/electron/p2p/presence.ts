@@ -2,6 +2,7 @@ import dgram from "dgram";
 import os from "os";
 import crypto from "crypto";
 import { log } from "../logger.js";
+import {DEVICE_ID, DEVICE_NAME} from "./deviceIdentity.js"
 
 const DISCOVERY_PORT = 41234;
 const BROADCAST_ADDR = "255.255.255.255";
@@ -14,9 +15,6 @@ const HTTP_PORT = 8080;
 
 const socket = dgram.createSocket("udp4");
 
-// unique ID per app instance
-const DEVICE_ID = crypto.randomUUID();
-const DEVICE_NAME = os.hostname();
 const START_TIME = Date.now();
 
 type DeviceInfo = {
