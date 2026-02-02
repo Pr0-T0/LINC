@@ -56,7 +56,7 @@ function broadcastPresence() {
     BROADCAST_ADDR
   );
 
-  // log("debug",`BroadCasting Info : ${message}`);
+  // log("debug",`BroadCasting Info : ${payload.name}`);
 }
 
 // listen for other devices
