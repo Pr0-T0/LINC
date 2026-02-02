@@ -6,7 +6,7 @@ import { getPreloadPath } from "./pathResolver.js";
 import { initDB, resetDB } from "./db/db.js";
 import { scanDirectory } from "./db/scanner.js";
 import { runAgent } from "./api/functionCall.js";
-import { getLanDevices, startLanPresence } from "./webrtc/presence.js";
+import { getLanDevices, startLanPresence } from "./p2p/presence.js";
 import { loadSettings, saveSettings } from "./settings.js";
 import { log } from "./logger.js";
 
