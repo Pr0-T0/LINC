@@ -13,5 +13,9 @@ export type TransferOffer = {
     deviceId: string;
     name: string;
   };
+  sender: {
+    ip: string;
+    port: number;
+  };
   timestamp: number;
 };

@@ -6,6 +6,7 @@ import path from "path";
 import { log } from "../logger.js";
 import { TransferOffer } from "./types.js";
 import { BrowserWindow, ipcMain } from "electron";
+import { TransferManager } from "./transferManager.js";
 
 // allow server → UI communication
 let mainWindowRef: BrowserWindow | null = null;
@@ -110,10 +111,20 @@ export function startHttpServer() {
       }
     }
 
+    const senderIp = 
+      req.headers["x-forwarded-for"]?.toString().split(",")[0] ||
+      req.socket.remoteAddress ||
+      "";
+    const normalizedIp = senderIp.replace("::ffff:","");
+
     const offer: TransferOffer = {
       transferId,
       items,
       from,
+      sender: {
+        ip: normalizedIp,
+        port: HTTP_PORT,
+      },
       timestamp: Date.now(),
     };
 
@@ -165,6 +176,13 @@ export function startHttpServer() {
     }
 
     res.json({ accepted: true });
+    //start transfer
+    if (mainWindowRef) {
+      const tm = new TransferManager(mainWindowRef);
+      tm.start(offer).catch((err) => {
+        log("error",`Transfer failed: ${err.message}`);
+      });
+    }
   });
 
   app.listen(HTTP_PORT, "0.0.0.0", () => {
