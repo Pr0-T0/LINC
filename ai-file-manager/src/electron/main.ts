@@ -5,9 +5,12 @@ import { isDev } from "./util.js";
 import { getPreloadPath } from "./pathResolver.js";
 import { deleteRoot, getIndexedRoots, initDB, resetDB } from "./db/db.js";
 import { runAgent } from "./api/functionCall.js";
-import { getLanDevices, startLanPresence } from "./webrtc/presence.js";
-import { loadSettings, saveSettings, getSettings } from "./settings.js";
+
+import { getLanDevices, startLanPresence } from "./p2p/presence.js";
 import { log } from "./logger.js";
+import { startHttpServer, setMainWindow } from "./p2p/httpServer.js";
+
+import { loadSettings, saveSettings, getSettings } from "./settings.js";
 import { manualScan } from "./db/scanner.js";
 import { reconcileRoots } from "./db/reconcileRoots.js";
 
@@ -31,8 +34,9 @@ app.whenReady().then(async () => {
 
   //LAN Presence
   startLanPresence();
+  startHttpServer();
 
-  //Window 
+  // Window 
   const mainWindow = new BrowserWindow({
     width: 1000,
     height: 700,
@@ -45,6 +49,8 @@ app.whenReady().then(async () => {
     },
   });
 
+  //for pop up
+  setMainWindow(mainWindow);
 
   if (isDev()) {
     await mainWindow.loadURL("http://localhost:5432");

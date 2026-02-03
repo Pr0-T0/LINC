@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Sidebar from "./componants/sideBar";
 import MainContent from "./componants/mainContent";
 import FloatingTextBar from "./componants/floatingTextBar";
 import FilesScreen from "./screens/fileScreen";
 import TerminalLogger from "./componants/terminalLogger";
+import OfferPopup from "./componants/offerPopup";
+import type { TransferOffer } from "../electron/p2p/types";
 
 function App() {
   const [currentView, setCurrentView] = useState<
@@ -12,10 +14,20 @@ function App() {
 
   const [aiResult, setAIResult] = useState<any>(null);
 
-  const handleAIOutput = (response: any) => {
-    console.log("[AI RESULT]", response);
-    setAIResult(response);
+  //  GLOBAL OFFER STATE
+  const [incomingOffer, setIncomingOffer] =
+    useState<TransferOffer | null>(null);
 
+  useEffect(() => {
+    // listen once, globally
+    //@ts-ignore
+    window.p2p.onOffer((offer) => {
+      setIncomingOffer(offer);
+    });
+  }, []);
+
+  const handleAIOutput = (response: any) => {
+    setAIResult(response);
     if (response?.kind === "files") {
       setCurrentView("files");
     }
@@ -28,7 +40,6 @@ function App() {
 
       {/* CENTER + RIGHT */}
       <div className="flex flex-1 overflow-hidden">
-        {/* MAIN CONTENT (CENTER) */}
         <div className="flex-1 relative overflow-hidden">
           {currentView === "files" ? (
             <FilesScreen aiResult={aiResult} />
@@ -37,7 +48,6 @@ function App() {
           )}
         </div>
 
-        {/* RIGHT TERMINAL LOGGER */}
         <div className="w-70 border-l border-zinc-800 flex flex-col">
           <TerminalLogger />
         </div>
@@ -45,6 +55,23 @@ function App() {
 
       {/* FLOATING INPUT */}
       <FloatingTextBar onAICommand={handleAIOutput} />
+
+      {/* 🔴 GLOBAL OFFER POPUP */}
+      {incomingOffer && (
+        <OfferPopup
+          offer={incomingOffer}
+          onAccept={() => {
+            //@ts-ignore
+            window.p2p.acceptOffer(incomingOffer.transferId);
+            setIncomingOffer(null);
+          }}
+          onReject={() => {
+            //@ts-ignore
+            window.p2p.rejectOffer(incomingOffer.transferId);
+            setIncomingOffer(null);
+          }}
+        />
+      )}
     </div>
   );
 }

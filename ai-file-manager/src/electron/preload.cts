@@ -55,3 +55,23 @@ contextBridge.exposeInMainWorld("logger", {
     ipcRenderer.removeListener("log:event", callback);
   },
 });
+
+
+//file receive IPC
+contextBridge.exposeInMainWorld("p2p", {
+  // listen for incoming offers
+  onOffer: (callback: (offer: any) => void) => {
+    ipcRenderer.on("p2p:offer-received", (_event, offer) => {
+      callback(offer);
+    });
+  },
+
+  // user actions
+  acceptOffer: (transferId: string) => {
+    ipcRenderer.send(`p2p:offer-accept:${transferId}`);
+  },
+
+  rejectOffer: (transferId: string) => {
+    ipcRenderer.send(`p2p:offer-reject:${transferId}`);
+  },
+});

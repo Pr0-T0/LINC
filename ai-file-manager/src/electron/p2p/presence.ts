@@ -1,60 +1,77 @@
 import dgram from "dgram";
 import os from "os";
 import crypto from "crypto";
+import { log } from "../logger.js";
+import {DEVICE_ID, DEVICE_NAME} from "./deviceIdentity.js"
 
-const PORT = 41234;
+const DISCOVERY_PORT = 41234;
 const BROADCAST_ADDR = "255.255.255.255";
-const HEARTBEAT_INTERVAL = 2000; // ms
-const OFFLINE_TIMEOUT = 6000; // ms
+
+const HEARTBEAT_INTERVAL = 3000; // ms
+const OFFLINE_TIMEOUT = 9000; // ms (≈ 3 heartbeats)
+
+// HTTP server port (IMPORTANT)
+const HTTP_PORT = 8080;
 
 const socket = dgram.createSocket("udp4");
 
-// unique ID per app instance
-const DEVICE_ID = crypto.randomUUID();
 const START_TIME = Date.now();
 
-// store known devices
 type DeviceInfo = {
   deviceId: string;
+  name: string;
   address: string;
+  httpPort: number;
   uptime: number;
   lastSeen: number;
 };
 
 const devices = new Map<string, DeviceInfo>();
 
+let started = false;
+
 function getUptimeSeconds() {
   return Math.floor((Date.now() - START_TIME) / 1000);
 }
 
-// send heartbeat
+// broadcast presence
 function broadcastPresence() {
-  const message = JSON.stringify({
+  const payload = {
     deviceId: DEVICE_ID,
+    name: DEVICE_NAME,
+    httpPort: HTTP_PORT,
     uptime: getUptimeSeconds(),
     timestamp: Date.now(),
-  });
+  };
+
+  const message = Buffer.from(JSON.stringify(payload));
 
   socket.send(
     message,
     0,
     message.length,
-    PORT,
+    DISCOVERY_PORT,
     BROADCAST_ADDR
   );
+
+  // log("debug",`BroadCasting Info : ${payload.name}`);
 }
 
-// listen for others
+// listen for other devices
 socket.on("message", (msg, rinfo) => {
   try {
     const data = JSON.parse(msg.toString());
 
+    // ignore our own packets
     if (data.deviceId === DEVICE_ID) return;
+    if (!data.deviceId || !data.httpPort) return;
 
     devices.set(data.deviceId, {
       deviceId: data.deviceId,
+      name: data.name ?? "Unknown",
       address: rinfo.address,
-      uptime: data.uptime,
+      httpPort: data.httpPort,
+      uptime: data.uptime ?? 0,
       lastSeen: Date.now(),
     });
   } catch {
@@ -62,9 +79,10 @@ socket.on("message", (msg, rinfo) => {
   }
 });
 
-// cleanup offline devices
+// remove offline devices
 function cleanupDevices() {
   const now = Date.now();
+
   for (const [id, info] of devices.entries()) {
     if (now - info.lastSeen > OFFLINE_TIMEOUT) {
       devices.delete(id);
@@ -72,51 +90,26 @@ function cleanupDevices() {
   }
 }
 
-// print status
-function printStatus() {
-  // console.clear();
-  // console.log("=== LAN Devices ===");
-  // console.log(`This device: ${DEVICE_ID}`);
-  // console.log("");
+// socket error handling 
+socket.on("error", (err) => {
+  console.error("LAN presence socket error:", err);
+  socket.close();
+});
 
-  if (devices.size === 0) {
-    // console.log("No other devices detected");
-    return;
-  }
-
-  for (const info of devices.values()) {
-    console.log(
-      `ID: ${info.deviceId}
-IP: ${info.address}
-Uptime: ${info.uptime}s
-Last seen: ${(Date.now() - info.lastSeen) / 1000}s ago
----------------------------`
-    );
-  }
-}
-
-// // socket setup
-// socket.bind(PORT, () => {
-//   socket.setBroadcast(true);
-
-//   setInterval(broadcastPresence, HEARTBEAT_INTERVAL);
-//   setInterval(cleanupDevices, HEARTBEAT_INTERVAL);
-//   setInterval(printStatus, HEARTBEAT_INTERVAL);
-// });
-
+// start presence system
 export function startLanPresence() {
-    // socket setup
-    socket.bind(PORT, () => {
+  if (started) return;
+  started = true;
+
+  socket.bind(DISCOVERY_PORT, () => {
     socket.setBroadcast(true);
 
     setInterval(broadcastPresence, HEARTBEAT_INTERVAL);
     setInterval(cleanupDevices, HEARTBEAT_INTERVAL);
-    setInterval(printStatus, HEARTBEAT_INTERVAL);
-    });
+  });
 }
 
-
-//function for IPC
-export function getLanDevices() {
+// IPC-safe accessor
+export function getLanDevices(): DeviceInfo[] {
   return Array.from(devices.values());
 }

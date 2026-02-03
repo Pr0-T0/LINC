@@ -218,7 +218,7 @@ async function toolNode(state:z.infer<typeof MessagesState>) {
   const result: ToolMessage[] = [];
   for (const toolCall of LastMessage.tool_calls ?? []){
     const tool = toolsByName[toolCall.name];
-    const observation = await tool.invoke(toolCall);
+    const observation = await (tool as Runnable).invoke(toolCall);
     result.push(observation);
   }
 
@@ -252,12 +252,11 @@ const agent = new StateGraph(MessagesState)
 // Invoke
 import { HumanMessage } from "@langchain/core/messages";
 // import { clear } from "console";
-import { sqlGen } from "./sqlGen.js";
 import { moveorCopyPath } from "../tools/moveorCopyPath.js";
 import { normalizeSQLResult } from "../tools/normalizeSQLResult.js";
 import { queryFiles } from "../db/db.js";
 import { log } from "../logger.js";
-import { resolveRootPath } from "../db/resolveRoot.js";
+import { Runnable } from "@langchain/core/runnables";
 
 // import { console } from "inspector"; this import ruined two days of development :)
 // const result = await agent.invoke({
