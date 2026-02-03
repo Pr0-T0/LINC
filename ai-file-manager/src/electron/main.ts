@@ -9,7 +9,7 @@ import { runAgent } from "./api/functionCall.js";
 import { getLanDevices, startLanPresence } from "./p2p/presence.js";
 import { loadSettings, saveSettings } from "./settings.js";
 import { log } from "./logger.js";
-import { startHttpServer } from "./p2p/httpServer.js";
+import { startHttpServer, setMainWindow } from "./p2p/httpServer.js";
 
 // Disable GPU
 app.disableHardwareAcceleration();
@@ -55,6 +55,8 @@ app.whenReady().then(async () => {
     },
   });
 
+  //for pop up
+  setMainWindow(mainWindow);
 
   if (isDev()) {
     await mainWindow.loadURL("http://localhost:5432");

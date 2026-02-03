@@ -5,10 +5,15 @@ import fs from "fs";
 import path from "path";
 import { log } from "../logger.js";
 import { TransferOffer } from "./types.js";
+import { BrowserWindow, ipcMain } from "electron";
 
+// allow server → UI communication
+let mainWindowRef: BrowserWindow | null = null;
+export function setMainWindow(win: BrowserWindow) {
+  mainWindowRef = win;
+}
 
-
-const pendingOfferrs = new Map<string, TransferOffer>();
+const pendingOffers = new Map<string, TransferOffer>();
 
 const HTTP_PORT = 8080;
 let started = false;
@@ -37,7 +42,7 @@ export function startHttpServer() {
     res.send("simon says ping..");
   });
 
-  //  FILE DOWNLOAD ENDPOINT
+  // file download endpoint
   app.get("/download", (req, res) => {
     const filePath = req.query.path as string;
 
@@ -46,7 +51,6 @@ export function startHttpServer() {
       return;
     }
 
-    // normalize path 
     const resolvedPath = path.resolve(filePath);
 
     if (!fs.existsSync(resolvedPath)) {
@@ -55,7 +59,6 @@ export function startHttpServer() {
     }
 
     const stat = fs.statSync(resolvedPath);
-
     if (!stat.isFile()) {
       res.status(400).send("Not a file");
       return;
@@ -71,7 +74,6 @@ export function startHttpServer() {
     log("info", `Sending file: ${resolvedPath}`);
 
     const stream = fs.createReadStream(resolvedPath);
-
     stream.pipe(res);
 
     stream.on("error", (err) => {
@@ -80,57 +82,89 @@ export function startHttpServer() {
     });
   });
 
-  //offer endpoint
-  app.post("/offer", (req,res) => {
-    const {transferId, items, from} = req.body;
+  // transfer offer endpoint
+  app.post("/offer", async (req, res) => {
+    const { transferId, items, from } = req.body;
 
-    //validation
+    // validate payload
     if (
-        !transferId || 
-        !Array.isArray(items) ||
-        items.length === 0 ||
-        !from?.deviceId ||
-        !from?.name
-    ){
-        res.status(400).json({error: "invalid offer payload"});
-        return;
+      !transferId ||
+      !Array.isArray(items) ||
+      items.length === 0 ||
+      !from?.deviceId ||
+      !from?.name
+    ) {
+      res.status(400).json({ error: "Invalid offer payload" });
+      return;
     }
 
     for (const item of items) {
-        if (
-            !item.id ||
-            !item.name ||
-            typeof item.size !== "number" ||
-            !["file", "folder"].includes(item.type)
-        ) {
-            res.status(400).json({ error: "Invalid item in offer" });
-            return;
-        }
+      if (
+        !item.id ||
+        !item.name ||
+        typeof item.size !== "number" ||
+        !["file", "folder"].includes(item.type)
+      ) {
+        res.status(400).json({ error: "Invalid item in offer" });
+        return;
+      }
     }
 
-    //store offer
     const offer: TransferOffer = {
-        transferId,
-        items,
-        from,
-        timestamp: Date.now(),
+      transferId,
+      items,
+      from,
+      timestamp: Date.now(),
     };
 
-    pendingOfferrs.set(transferId, offer);
+    pendingOffers.set(transferId, offer);
+
     log(
-        "info",`Incoming offer with ${items.length} items from ${from.name}`
+      "info",
+      `Incoming offer with ${items.length} items from ${from.name}`
     );
 
-    //always accept no conformation for now later add an IPC
-    const accepted = true;
-
-    if (!accepted) {
-        pendingOfferrs.delete(transferId);
-        res.json({accepted: false});
-        return;
+    // notify frontend
+    if (mainWindowRef) {
+      mainWindowRef.webContents.send("p2p:offer-received", offer);
     }
 
-    res.json({accepted:true});
+    // wait for user decision with timeout
+    const decision = await new Promise<"accept" | "reject">((resolve) => {
+      const acceptChannel = `p2p:offer-accept:${transferId}`;
+      const rejectChannel = `p2p:offer-reject:${transferId}`;
+
+      const cleanup = () => {
+        ipcMain.removeAllListeners(acceptChannel);
+        ipcMain.removeAllListeners(rejectChannel);
+      };
+
+      const timeout = setTimeout(() => {
+        cleanup();
+        log("info", `Offer ${transferId} timed out`);
+        resolve("reject");
+      }, 30_000); // 30 seconds
+
+      ipcMain.once(acceptChannel, () => {
+        clearTimeout(timeout);
+        cleanup();
+        resolve("accept");
+      });
+
+      ipcMain.once(rejectChannel, () => {
+        clearTimeout(timeout);
+        cleanup();
+        resolve("reject");
+      });
+    });
+
+    if (decision === "reject") {
+      pendingOffers.delete(transferId);
+      res.json({ accepted: false });
+      return;
+    }
+
+    res.json({ accepted: true });
   });
 
   app.listen(HTTP_PORT, "0.0.0.0", () => {
