@@ -1,15 +1,18 @@
 // src/electron/main.ts
 import { app, BrowserWindow, ipcMain, dialog, Menu} from "electron";
-import { join } from "path";
+import path, { join } from "path";
 import { isDev } from "./util.js";
 import { getPreloadPath } from "./pathResolver.js";
-import { initDB, resetDB } from "./db/db.js";
-import { scanDirectory } from "./db/scanner.js";
+import { deleteRoot, getIndexedRoots, initDB, resetDB } from "./db/db.js";
 import { runAgent } from "./api/functionCall.js";
+
 import { getLanDevices, startLanPresence } from "./p2p/presence.js";
-import { loadSettings, saveSettings } from "./settings.js";
 import { log } from "./logger.js";
 import { startHttpServer, setMainWindow } from "./p2p/httpServer.js";
+
+import { loadSettings, saveSettings, getSettings } from "./settings.js";
+import { manualScan } from "./db/scanner.js";
+import { reconcileRoots } from "./db/reconcileRoots.js";
 
 // Disable GPU
 app.disableHardwareAcceleration();
@@ -21,24 +24,15 @@ app.whenReady().then(async () => {
   const settings = loadSettings(); // <-- creates settings.json
   console.log("[Settings] Loaded:", settings);
 
-  // Database 
+  //Database 
   initDB();
   console.log("[DB] Ready and connected.");
 
-  // File Indexing 
-  const roots = settings.scan.roots;
-  console.log("[Scan] Starting file indexing:", roots);
+  //File Indexing 
+  
+  await reconcileRoots();
 
-  for (const root of roots) {
-    try {
-      console.log(`[Scan] Scanning root: ${root}`);
-      await scanDirectory(root);
-    } catch (err) {
-      console.error(`[Scan] Error scanning root ${root}:`, err);
-    }
-  }
-
-  // LAN Presence 
+  //LAN Presence
   startLanPresence();
   startHttpServer();
 
@@ -79,7 +73,7 @@ app.whenReady().then(async () => {
 
   // ---------------- IPC: Settings ----------------
   ipcMain.handle("settings:get", () => {
-    return JSON.parse(JSON.stringify(loadSettings()));
+    return JSON.parse(JSON.stringify(getSettings()));
   });
 
   ipcMain.handle("settings:set", (_event, settings) => {
@@ -96,20 +90,10 @@ app.whenReady().then(async () => {
   //rescan IPC 
   ipcMain.handle("scan:rescan", async () => {
   console.log("Manual Rescan");
-  log("info","Reindexing..")
+  log("info","Reindexing Roots")
 
-  const settings = loadSettings();
-  const roots = settings.scan.roots;
-
-  resetDB();
-
-  for (const root of roots) {
-    try {
-      await scanDirectory(root);
-    } catch (err) {
-      console.error("Error scanning Root : ",root, err)
-    }
-  }
+  await reconcileRoots();
+    log("info","Reindexing Successfull")
   });
 
   //UDP presence IPC
@@ -121,7 +105,7 @@ app.whenReady().then(async () => {
 });
 
 
-// ---------------- Graceful Shutdown ----------------
+// Graceful Shutdown
 app.on("before-quit", () => {
   try {
     const { closeDB } = require("./db/db.js");
@@ -131,3 +115,4 @@ app.on("before-quit", () => {
     console.warn("[DB] Failed to close cleanly");
   }
 });
+

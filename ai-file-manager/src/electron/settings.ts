@@ -34,8 +34,11 @@ const DEFAULT_SETTINGS: AppSettings = {
   },
 };
 
-// ---------------- Path Resolution ----------------
+// Path Resolution 
 let SETTINGS_PATH: string | null = null;
+
+//settings cache
+let SETTINGS_CACHE: AppSettings | null = null;
 
 function resolveSettingsPath(): string {
   const __filename = fileURLToPath(import.meta.url);
@@ -69,6 +72,11 @@ function getSettingsPath(): string {
 
 // ---------------- Load / Save ----------------
 export function loadSettings(): AppSettings {
+  if (SETTINGS_CACHE) {
+    return SETTINGS_CACHE;
+  }
+
+
   const settingsPath = getSettingsPath();
 
   if (!fs.existsSync(settingsPath)) {
@@ -76,12 +84,31 @@ export function loadSettings(): AppSettings {
       settingsPath,
       JSON.stringify(DEFAULT_SETTINGS, null, 2)
     );
+    SETTINGS_CACHE = DEFAULT_SETTINGS;
     console.log("[settings] created");
-    return DEFAULT_SETTINGS;
+    return SETTINGS_CACHE;
   }
 
   try {
-    return JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
+    // SETTINGS_CACHE = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
+    // return SETTINGS_CACHE;
+    const parsed = JSON.parse(
+    fs.readFileSync(settingsPath, "utf-8")
+  ) as Partial<AppSettings>;
+
+  SETTINGS_CACHE = {
+    scan: {
+      roots: Array.isArray(parsed.scan?.roots)
+        ? parsed.scan!.roots
+        : DEFAULT_SETTINGS.scan.roots,
+
+      exclude: Array.isArray(parsed.scan?.exclude)
+        ? parsed.scan!.exclude
+        : DEFAULT_SETTINGS.scan.exclude,
+    },
+  };
+
+  return SETTINGS_CACHE;
   } catch {
     // Corrupt settings recovery
     fs.writeFileSync(
@@ -89,15 +116,25 @@ export function loadSettings(): AppSettings {
       JSON.stringify(DEFAULT_SETTINGS, null, 2)
     );
     console.warn("[settings] corrupted file reset");
+    SETTINGS_CACHE = DEFAULT_SETTINGS;
     return DEFAULT_SETTINGS;
   }
 }
 
 export function saveSettings(settings: AppSettings) {
   const settingsPath = getSettingsPath();
-
+  SETTINGS_CACHE = settings;
   fs.writeFileSync(
     settingsPath,
     JSON.stringify(settings, null, 2)
   );
+}
+
+export function getSettings(): AppSettings {
+  if (!SETTINGS_CACHE) {
+    throw new Error(
+      "Settings not loaded. Call loadSettings() once in main()."
+    )
+  }
+  return SETTINGS_CACHE;
 }

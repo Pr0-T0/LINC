@@ -1,6 +1,8 @@
 import fs from "fs";
 import path from "path";
 import { upsertMany } from "../db/db.js";
+import { log } from "../logger.js";
+import { resolveRootPath } from "../db/resolveRoot.js";
 
 interface FileMeta {
   path: string;
@@ -10,6 +12,8 @@ interface FileMeta {
   size?: number;
   created_at?: number | null;
   modified_at?: number | null;
+  root_path: string;
+  last_seen_at: number;
 }
 
 type CreateFolderResult =
@@ -24,6 +28,7 @@ type CreateFolderResult =
 export async function createFolder(folderPath: string): Promise<CreateFolderResult> {
   try {
     const fullPath = path.resolve(folderPath);
+    const rootPath = resolveRootPath(fullPath);
 
     // create directory if it doesn't exist
     if (!fs.existsSync(fullPath)) {
@@ -45,10 +50,13 @@ export async function createFolder(folderPath: string): Promise<CreateFolderResu
       size: 0,
       created_at: stat?.birthtimeMs ?? null,
       modified_at: stat?.mtimeMs ?? null,
+      root_path: path.normalize(rootPath),
+      last_seen_at: Date.now(),
     };
 
     await upsertMany([meta]);
 
+    log("info","Folder Created")
     return { path: fullPath };
   } catch (err: any) {
     return {

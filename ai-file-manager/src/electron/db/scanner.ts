@@ -15,6 +15,8 @@ interface FileMeta {
   size?: number;
   created_at?: number;
   modified_at?: number;
+  root_path: string;
+  last_seen_at: number;
 }
 
 const BATCH_SIZE = 400;
@@ -37,7 +39,8 @@ function shouldIgnore(name: string): boolean {
 export async function scanDirectory(
   root: string,
   dir: string = root,
-  realRoot: string = fs.realpathSync(root)
+  realRoot: string = fs.realpathSync(root),
+  scanTime: number
 ): Promise<void> {
   let realDir: string;
 
@@ -69,7 +72,9 @@ export async function scanDirectory(
       type: "directory",
       size: 0,
       created_at: dirStat.birthtimeMs,
-      modified_at: dirStat.mtimeMs
+      modified_at: dirStat.mtimeMs,
+      root_path: root,
+      last_seen_at: scanTime
     });
   } catch {
     // ignore unreadable folder
@@ -98,10 +103,12 @@ export async function scanDirectory(
         type: "directory",
         size: 0,
         created_at: stat.birthtimeMs,
-        modified_at: stat.mtimeMs
+        modified_at: stat.mtimeMs,
+        root_path: root,
+        last_seen_at: scanTime
       });
 
-      await scanDirectory(root, full, realRoot);
+      await scanDirectory(root, full, realRoot, scanTime);
 
     } else if (entry.isFile()) {
       if (shouldIgnore(entry.name)) continue;
@@ -114,7 +121,9 @@ export async function scanDirectory(
         extension: path.extname(entry.name),
         size: stat.size,
         created_at: stat.birthtimeMs,
-        modified_at: stat.mtimeMs
+        modified_at: stat.mtimeMs,
+        root_path: root,
+        last_seen_at:scanTime
       });
     }
 
@@ -131,3 +140,21 @@ export async function scanDirectory(
     batch = [];
   }
 }
+
+import { markRootUnseen, deleteUnseenInRoot } from "./db.js";
+
+export async function manualScan(root: string) {
+  const normalizedRoot = path.normalize(root);
+  const scanTime = Date.now();
+  const realRoot = fs.realpathSync(normalizedRoot);
+
+  // 1. mark old entries as unseen
+  markRootUnseen(normalizedRoot);
+
+  // 2. scan filesystem
+  await scanDirectory(normalizedRoot, normalizedRoot, realRoot, scanTime);
+
+  // 3. delete missing entries
+  deleteUnseenInRoot(normalizedRoot);
+}
+

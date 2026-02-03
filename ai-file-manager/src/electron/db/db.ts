@@ -33,7 +33,8 @@ export interface FileMeta {
   size?: number;
   created_at?: number | null;
   modified_at?: number | null;
-  hash?: string | null;
+  root_path?: string;
+  last_seen_at?:number | null;
 }
 
 // ---------------- Globals ----------------
@@ -87,7 +88,9 @@ export function initDB() {
       size          INTEGER DEFAULT 0,
       created_at    INTEGER,
       modified_at   INTEGER,
-      hash          TEXT
+
+      root_path     TEXT,
+      last_seen_at  INTEGER
     );
   `);
 
@@ -98,6 +101,16 @@ export function initDB() {
     CREATE INDEX IF NOT EXISTS idx_files_modified_at ON files_index(modified_at);
     CREATE INDEX IF NOT EXISTS idx_files_type        ON files_index(type);
   `);
+  db.exec(`
+  CREATE INDEX IF NOT EXISTS idx_files_root
+  ON files_index(root_path);
+  `);
+
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_files_root_seen
+    ON files_index(root_path, last_seen_at);
+  `);
+
 
   console.log(`[DB] Initialized at: ${DB_FILE}`);
 }
@@ -112,8 +125,8 @@ export function ensureDB(): Database.Database {
 function getStatements(database: Database.Database) {
   return {
     upsertStmt: database.prepare(`
-      INSERT INTO files_index (path, parent, name, type, extension, size, created_at, modified_at, hash)
-      VALUES (@path, @parent, @name, @type, @extension, @size, @created_at, @modified_at, @hash)
+      INSERT INTO files_index (path, parent, name, type, extension, size, created_at, modified_at, root_path, last_seen_at)
+      VALUES (@path, @parent, @name, @type, @extension, @size, @created_at, @modified_at, @root_path, @last_seen_at)
       ON CONFLICT(path) DO UPDATE SET
         parent      = excluded.parent,
         name        = excluded.name,
@@ -122,7 +135,8 @@ function getStatements(database: Database.Database) {
         size        = excluded.size,
         created_at  = COALESCE(excluded.created_at, files_index.created_at),
         modified_at = excluded.modified_at,
-        hash        = excluded.hash;
+        root_path     = COALESCE(excluded.root_path, files_index.root_path),
+        last_seen_at  = COALESCE(excluded.last_seen_at, files_index.last_seen_at);
     `),
 
     deleteByPathStmt: database.prepare(`DELETE FROM files_index WHERE path = ?`),
@@ -156,7 +170,8 @@ export function upsertFile(meta: FileMeta) {
     size: meta.size ?? 0,
     created_at: meta.created_at ?? null,
     modified_at: meta.modified_at ?? null,
-    hash: meta.hash ?? null,
+    root_path: meta.root_path ? path.normalize(meta.root_path) : null,
+    last_seen_at: meta.last_seen_at ?? null,
   });
 }
 
@@ -273,7 +288,8 @@ export const upsertMany = (rows: FileMeta[]) => {
         size: item.size ?? 0,
         created_at: item.created_at ?? null,
         modified_at: item.modified_at ?? null,
-        hash: item.hash ?? null,
+        root_path: item.root_path ? path.normalize(item.root_path) : null,
+        last_seen_at: item.last_seen_at ?? null, 
       });
     }
   });
@@ -322,7 +338,8 @@ export function resetDB() {
       size          INTEGER DEFAULT 0,
       created_at    INTEGER,
       modified_at   INTEGER,
-      hash          TEXT
+      root_path     TEXT,
+      last_seen_at  INTEGER
     );
   `);
 
@@ -345,4 +362,42 @@ export function closeDB() {
     db = null;
     console.log("[DB] Closed.");
   }
+}
+
+
+//helper
+
+export function markRootUnseen(rootPath: string) {
+  const database = ensureDB();
+  return database.prepare(`
+    UPDATE files_index
+    SET last_seen_at = NULL
+    WHERE root_path = ?
+  `).run(path.normalize(rootPath));
+}
+
+export function deleteUnseenInRoot(rootPath: string) {
+  const database = ensureDB();
+  return database.prepare(`
+    DELETE FROM files_index
+    WHERE root_path = ?
+      AND last_seen_at IS NULL
+  `).run(path.normalize(rootPath));
+}
+
+export function getIndexedRoots(): string[] {
+  const database = ensureDB();
+  return database
+  .prepare(
+    `SELECT DISTINCT root_path FROM files_index`
+  )
+  .all()
+  .map((r:any) => path.normalize(r.root_path));
+}
+
+export function deleteRoot(rootPath: string) {
+  const database = ensureDB();
+  return database.prepare(
+    `DELETE FROM files_index WHERE root_path = ?`
+  ).run(path.normalize(rootPath));
 }

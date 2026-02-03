@@ -6,6 +6,7 @@ import { executeSQL } from "../db/exeSQL.js";
 import { displayResult } from "../test/displaySQL.js";
 import "dotenv/config";
 import { createFolder } from "../tools/createFolder.js";
+import nodePath from "path"
 
 
 // const model = new ChatGoogleGenerativeAI({
@@ -94,6 +95,8 @@ const createfolder = tool(
   async ( { path } ) => {
     console.log("createFolder called");
     log("info","Creating Folder");
+
+
     const result = await createFolder(path);
     if ("error" in result) {
       return {
