@@ -14,6 +14,7 @@ import { loadSettings, saveSettings, getSettings } from "./settings.js";
 import { manualScan } from "./db/scanner.js";
 import { reconcileRoots } from "./db/reconcileRoots.js";
 
+
 // Disable GPU
 app.disableHardwareAcceleration();
 app.commandLine.appendSwitch("force-device-scale-factor", "1");
@@ -60,6 +61,8 @@ app.whenReady().then(async () => {
 
   console.log("[App] Main window loaded!");
   log("info","App started");
+
+
 
   // ---------------- IPC: AI ----------------
   ipcMain.handle("ai:chat-sql", async (_event, userQuery: string) => {

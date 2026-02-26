@@ -126,3 +126,13 @@ export function manualScan() {
 export function getLanDevices(): DeviceInfo[] {
   return Array.from(devices.values());
 }
+
+
+export function getPeerByName(name: string): DeviceInfo | null {
+  for (const device of devices.values()) {
+    if (device.name === name) {
+      return device;
+    }
+  }
+  return null;
+}

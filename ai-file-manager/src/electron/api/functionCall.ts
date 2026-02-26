@@ -163,6 +163,43 @@ const moveorcopypath = tool(
   }
 );
 
+const sendfiles = tool(
+  async ({ peerName, filePaths }) => {
+    log("info","Sending Files...");
+
+    const result = await sendFilesTool({
+      peerName,
+      filePaths,
+    });
+
+    if (!result.success) {
+      return {
+        status:
+          "error: Could not send files. Ensure peer is online and paths are resolved using query_file_index.",
+        error: result.error,
+      };
+    }
+
+    return {
+      status: result.accepted ? "accepted" : "rejected",
+      accepted: result.accepted,
+    };
+  },
+  {
+    name: "sendfiles",
+    description:
+      "Send resolved files to a peer device over LAN. " +
+      "Do NOT guess file paths. " +
+      "Use query_file_index with purpose='resolve' to get exact file paths before calling this tool.",
+    schema: z.object({
+      peerName: z.string().describe("Exact discovered device name"),
+      filePaths: z
+        .array(z.string())
+        .describe("Absolute file paths already resolved"),
+    }),
+  }
+);
+
 
 
 //augment with tools
@@ -172,6 +209,7 @@ const toolsByName = {
   [query_file_index.name] : query_file_index,
   [display_result_to_ui.name] : display_result_to_ui,
   [moveorcopypath.name] : moveorcopypath,
+  [sendfiles.name]: sendfiles,
 };
 const tools = Object.values(toolsByName);
 const modelWithTools = model.bindTools(tools);
@@ -194,10 +232,43 @@ import { SystemMessage } from "@langchain/core/messages";
 async function llmCall(state:z.infer<typeof MessagesState>) {
   return {
     messages:  await modelWithTools.invoke([
-      new SystemMessage(
-        "You are a helpfull file manager assistant named LINC tasked with performing file operations.all file metadata information is stored in a sql db which is not visible or known to the user.always try to display the final result to the user not only the text responce"
+      new SystemMessage(`
+        You are LINC, a strict and reliable file system assistant.
 
-      ),
+        CRITICAL RULES:
+
+        1. NEVER fabricate file paths.
+        2. NEVER guess directories.
+        3. All file metadata exists ONLY inside the indexed SQL database.
+        4. To locate files or folders, ALWAYS use query_file_index.
+        5. If performing operations (create, move, copy, send):
+          - First resolve paths using query_file_index with purpose="resolve".
+          - Then call the appropriate tool.
+
+        6. If the user requests to SEND files:
+          - Resolve file paths first.
+          - Ensure peer name matches discovered device.
+          - Then call sendfiles tool.
+
+        7. When finished reasoning, ALWAYS call display_result_to_ui.
+          - This marks the final response.
+          - Do not end with plain text unless it is purely conversational.
+
+        8. If something fails:
+          - Explain clearly.
+          - Do not hallucinate success.
+
+        9. Do NOT generate SQL.
+        10. Do NOT expose internal database structure.
+
+        Behavior Model:
+
+        User intent → Resolve metadata → Execute tool → Display result.
+
+        Be deterministic.
+        Be safe.
+        Be accurate.
+        `),
       ...state.messages,
     ]),
     llmCalls: (state.llmCalls ?? 0) + 1,
@@ -257,6 +328,7 @@ import { normalizeSQLResult } from "../tools/normalizeSQLResult.js";
 import { queryFiles } from "../db/db.js";
 import { log } from "../logger.js";
 import { Runnable } from "@langchain/core/runnables";
+import { sendFilesTool } from "../p2p/sendFile.js";
 
 // import { console } from "inspector"; this import ruined two days of development :)
 // const result = await agent.invoke({
