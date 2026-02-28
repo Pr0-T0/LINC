@@ -8,13 +8,6 @@ const bonjour = new Bonjour();
 
 const HTTP_PORT = 8080;
 
-// automatic cleanup (safe + stable)
-const OFFLINE_TIMEOUT = 15_000;     // device removed if unseen for 15s
-const CLEANUP_INTERVAL = 3_000;
-
-// browser self-heal (rare edge cases)
-const DISCOVERY_RESTART_INTERVAL = 60_000;
-
 /* ───────── STATE ───────── */
 
 type DeviceInfo = {
@@ -23,37 +16,16 @@ type DeviceInfo = {
   address: string;
   httpPort: number;
   uptime: number;
-  lastSeen: number;
 };
 
 const devices = new Map<string, DeviceInfo>();
 
 let started = false;
 let browser: ReturnType<typeof bonjour.find> | null = null;
-const START_TIME = Date.now();
 
-/* ───────── UTILS ───────── */
+/* ───────── DISCOVERY HANDLER ───────── */
 
-function uptimeSeconds() {
-  return Math.floor((Date.now() - START_TIME) / 1000);
-}
-
-/* ───────── CLEANUP ───────── */
-
-function cleanupDevices() {
-  const now = Date.now();
-
-  for (const [id, info] of devices.entries()) {
-    if (now - info.lastSeen > OFFLINE_TIMEOUT) {
-      log("debug", `OFFLINE:${info.name}`);
-      devices.delete(id);
-    }
-  }
-}
-
-/* ───────── DISCOVERY ───────── */
-
-function handleService(service: any) {
+function handleServiceUp(service: any) {
   const ip =
     service.addresses?.find((a: string) => a.includes(".")) ??
     service.referer?.address;
@@ -71,7 +43,6 @@ function handleService(service: any) {
     address: ip,
     httpPort: service.port,
     uptime: Number(service.txt?.uptime ?? 0),
-    lastSeen: Date.now(),
   });
 
   log(
@@ -82,20 +53,38 @@ function handleService(service: any) {
   );
 }
 
-function startDiscovery() {
-  if (browser) browser.stop();
+function handleServiceDown(service: any) {
+  const deviceId = service.txt?.deviceId;
+  if (!deviceId) return;
 
-  browser = bonjour.find({ type: "p2p-transfer" });
-  browser.on("up", handleService);
+  const existing = devices.get(deviceId);
+  if (!existing) return;
+
+  devices.delete(deviceId);
+  log("debug", `OFFLINE:${existing.name}`);
 }
 
-/* ───────── START ───────── */
+/* ───────── START DISCOVERY ───────── */
+
+function startDiscovery() {
+  if (browser) return;
+
+  browser = bonjour.find({ type: "p2p-transfer" });
+
+  browser.on("up", handleServiceUp);
+  browser.on("down", handleServiceDown);
+
+  browser.on("error", (err: any) => {
+    log("error", `Bonjour error: ${err.message}`);
+  });
+}
+
+/* ───────── START PRESENCE ───────── */
 
 export function startLanPresence() {
   if (started) return;
   started = true;
 
-  // Advertise THIS device
   bonjour.publish({
     name: DEVICE_NAME,
     type: "p2p-transfer",
@@ -103,30 +92,44 @@ export function startLanPresence() {
     port: HTTP_PORT,
     txt: {
       deviceId: DEVICE_ID,
-      uptime: uptimeSeconds().toString(),
+      uptime: "0",
     },
   });
 
   startDiscovery();
-
-  setInterval(cleanupDevices, CLEANUP_INTERVAL);
-  setInterval(startDiscovery, DISCOVERY_RESTART_INTERVAL);
 }
 
-/* ───────── OPTIONAL MANUAL SCAN ───────── */
+/* ───────── CLEAN SHUTDOWN ───────── */
 
-export function manualScan() {
-  log("debug", "Manual scan triggered");
-  startDiscovery();
-  cleanupDevices();
+function shutdownPresence() {
+  log("info", "Unpublishing Bonjour service...");
+
+  try {
+    bonjour.unpublishAll(() => {
+      bonjour.destroy();
+      log("info", "Bonjour service stopped cleanly.");
+    });
+  } catch (err: any) {
+    log("error", `Shutdown error: ${err.message}`);
+  }
 }
 
-/* ───────── ACCESSOR ───────── */
+// Handle Node process signals
+process.on("SIGINT", () => {
+  shutdownPresence();
+  process.exit(0);
+});
+
+process.on("SIGTERM", () => {
+  shutdownPresence();
+  process.exit(0);
+});
+
+/* ───────── ACCESSORS ───────── */
 
 export function getLanDevices(): DeviceInfo[] {
   return Array.from(devices.values());
 }
-
 
 export function getPeerByName(name: string): DeviceInfo | null {
   for (const device of devices.values()) {

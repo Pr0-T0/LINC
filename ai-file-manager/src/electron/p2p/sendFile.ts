@@ -5,6 +5,30 @@ import crypto from "crypto";
 import { TransferItem, TransferOffer } from "./types.js";
 import { DEVICE_ID, DEVICE_NAME } from "./deviceIdentity.js";
 import { getPeerByName } from "./presence.js";
+import os from "os";
+
+
+
+// helper to get lan ip ; defaults to localhost
+function getLocalLanIp(): string {
+  const interfaces = os.networkInterfaces();
+
+  for (const name of Object.keys(interfaces)) {
+    for (const iface of interfaces[name] || []) {
+      if (
+        iface.family === "IPv4" &&
+        !iface.internal &&
+        iface.address.startsWith("192.")
+      ) {
+        return iface.address;
+      }
+    }
+  }
+
+  return "127.0.0.1";
+}
+
+const LOCAL_IP = getLocalLanIp();
 
 
 
@@ -18,14 +42,14 @@ export async function sendFilesTool(input: {
     }
 
     // 1. Resolve peer
-    // const peer = getPeerByName(input.peerName);
-    // if (!peer) {
-    //   return { success: false, error: "Peer not found" };
-    // }
-    const peer = {
-      address: "127.0.0.1",
-      httpPort: 8088,
-  };
+    const peer = getPeerByName(input.peerName);
+    if (!peer) {
+      return { success: false, error: "Peer not found" };
+    }
+  //   const peer = {
+  //     address: "127.0.0.1",
+  //     httpPort: 8088,
+  // };
 
     // 2. Validate files
     const validatedPaths: string[] = [];
@@ -62,7 +86,7 @@ export async function sendFilesTool(input: {
             name: DEVICE_NAME,
         },
         sender: {
-            ip: peer.address,
+            ip: LOCAL_IP,
             port: peer.httpPort,
         },
         timestamp: Date.now(),
