@@ -5,6 +5,7 @@ import Database from "better-sqlite3";
 import { fileURLToPath } from "url";
 import { app } from "electron";
 import { isDev } from "../util.js";
+import { log } from "../logger.js";
 
 
 // ---------------- Query Types ---------------- pls dont break
@@ -202,6 +203,7 @@ export function searchByName(term: string, limit = 100) {
 // ---------------- Generic Query ----------------
 export function queryFiles(query: FileQuery) {
   const database = ensureDB();
+  log("info","querying....")
 
   const conditions: string[] = [];
   const params: any[] = [];

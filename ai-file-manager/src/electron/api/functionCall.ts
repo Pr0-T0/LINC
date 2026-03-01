@@ -18,7 +18,7 @@ import nodePath from "path"
 import { ChatOpenAI } from "@langchain/openai";
 
 const model = new ChatOpenAI({
-  model: "openai/gpt-oss-20b", // or other Groq models
+  model: "openai/gpt-oss-120b", // or other Groq models
   temperature: 0,
   apiKey: process.env.GROQ_API_KEY,
   configuration: {
@@ -200,6 +200,30 @@ const sendfiles = tool(
   }
 );
 
+const getOnlinePeers = tool(
+  async () => {
+    const peers = getLanDevices();
+
+    if (!peers.length) {
+      return "No peers are currently online.";
+    }
+
+    return peers.map(p => ({
+      name: p.name,
+      deviceId: p.deviceId,
+      address: p.address,
+      port: p.httpPort,
+      uptime: p.uptime
+    }));
+  },
+  {
+    name: "get_online_peers",
+    description:
+      "Returns a list of currently online LAN peers available for file transfer.",
+    schema: z.object({}) // no input needed
+  }
+);
+
 
 
 //augment with tools
@@ -210,6 +234,7 @@ const toolsByName = {
   [display_result_to_ui.name] : display_result_to_ui,
   [moveorcopypath.name] : moveorcopypath,
   [sendfiles.name]: sendfiles,
+  [getOnlinePeers.name]: getOnlinePeers,
 };
 const tools = Object.values(toolsByName);
 const modelWithTools = model.bindTools(tools);
@@ -279,21 +304,53 @@ async function llmCall(state:z.infer<typeof MessagesState>) {
 
 import { isAIMessage, ToolMessage } from "@langchain/core/messages";
 
-async function toolNode(state:z.infer<typeof MessagesState>) {
-  const LastMessage = state.messages.at(-1);
+// async function toolNode(state:z.infer<typeof MessagesState>) {
+//   const LastMessage = state.messages.at(-1);
 
-  if (LastMessage == null || !isAIMessage(LastMessage)){
-    return { messages: []}
+//   if (LastMessage == null || !isAIMessage(LastMessage)){
+//     return { messages: []}
+//   }
+
+//   const result: ToolMessage[] = [];
+//   for (const toolCall of LastMessage.tool_calls ?? []){
+//     const tool = toolsByName[toolCall.name];
+//     const observation = await (tool as Runnable).invoke(toolCall);
+//     result.push(observation);
+//   }
+
+//   return { messages: result};
+// }
+
+async function toolNode(state: z.infer<typeof MessagesState>) {
+  const lastMessage = state.messages.at(-1);
+
+  if (!lastMessage || !isAIMessage(lastMessage)) {
+    return { messages: [] };
   }
 
-  const result: ToolMessage[] = [];
-  for (const toolCall of LastMessage.tool_calls ?? []){
+  const results: ToolMessage[] = [];
+
+  for (const toolCall of lastMessage.tool_calls ?? []) {
     const tool = toolsByName[toolCall.name];
-    const observation = await (tool as Runnable).invoke(toolCall);
-    result.push(observation);
+    if (!tool) continue;
+
+    const rawOutput = await (tool as Runnable).invoke(toolCall.args);
+
+    const content =
+      typeof rawOutput === "string"
+        ? rawOutput
+        : JSON.stringify(rawOutput);
+
+    results.push(
+      new ToolMessage({
+        tool_call_id: toolCall.id!,
+        name: toolCall.name,          // CRITICAL FOR GROQ
+        content,                      // MUST BE STRING
+      })
+    );
   }
 
-  return { messages: result};
+  return { messages: results };
 }
 
 //end or continue
@@ -329,6 +386,7 @@ import { queryFiles } from "../db/db.js";
 import { log } from "../logger.js";
 import { Runnable } from "@langchain/core/runnables";
 import { sendFilesTool } from "../p2p/sendFile.js";
+import { getLanDevices } from "../p2p/presence.js";
 
 // import { console } from "inspector"; this import ruined two days of development :)
 // const result = await agent.invoke({
