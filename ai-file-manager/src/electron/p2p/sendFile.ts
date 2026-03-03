@@ -17,8 +17,7 @@ function getLocalLanIp(): string {
     for (const iface of interfaces[name] || []) {
       if (
         iface.family === "IPv4" &&
-        !iface.internal &&
-        iface.address.startsWith("192.")
+        !iface.internal 
       ) {
         return iface.address;
       }
