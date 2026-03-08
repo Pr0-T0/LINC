@@ -1,13 +1,13 @@
-import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { tool } from "@langchain/core/tools";
 import * as z from "zod";
 
-import { executeSQL } from "../db/exeSQL.js";
-import { displayResult } from "../test/displaySQL.js";
+
 import "dotenv/config";
 import { createFolder } from "../tools/createFolder.js";
-import nodePath from "path"
+import { MemorySaver } from "@langchain/langgraph";
 
+
+const memory = new MemorySaver(); //defines the agent memory
 
 // const model = new ChatGoogleGenerativeAI({
 //   model : "gemini-2.5-flash",
@@ -375,7 +375,9 @@ const agent = new StateGraph(MessagesState)
   .addEdge(START, "llmCall")
   .addConditionalEdges("llmCall", shouldContinue, ["toolNode", END])
   .addEdge("toolNode", "llmCall")
-  .compile();
+  .compile({
+    checkpointer: memory
+  });
 
 // Invoke
 import { HumanMessage } from "@langchain/core/messages";
@@ -394,15 +396,20 @@ import { getLanDevices } from "../p2p/presence.js";
 // });
 
 
-export async function runAgent(userInput: string) {
+export async function runAgent(userInput: string, sessionId: string) {
   let aggregatedItems: any[] = [];
   let aggregatedKind: "files" | null = null;
 
 
 
-  const result = await agent.invoke({
+  const result = await agent.invoke(
+    {
     messages: [new HumanMessage(userInput)],
-  });
+    },
+    {
+      configurable: {thread_id: sessionId}
+    }
+  );
 
   for (const message of result.messages) {
     console.log(`[${message.getType()}]: ${message.text}`);

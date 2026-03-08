@@ -67,7 +67,9 @@ app.whenReady().then(async () => {
   // ---------------- IPC: AI ----------------
   ipcMain.handle("ai:chat-sql", async (_event, userQuery: string) => {
     try {
-      const finalResponse = await runAgent(userQuery);
+      const sessionId = "main-window"; //if this works dont touch
+
+      const finalResponse = await runAgent(userQuery, sessionId);
       return { success: true, result: finalResponse };
     } catch (err: any) {
       return { success: false, error: err.message ?? "Unknown AI error" };
