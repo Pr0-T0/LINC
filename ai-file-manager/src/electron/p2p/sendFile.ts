@@ -3,7 +3,7 @@ import path from "path";
 import http from "http";
 import crypto from "crypto";
 import { TransferItem, TransferOffer } from "./types.js";
-import { DEVICE_ID, DEVICE_NAME } from "./deviceIdentity.js";
+import { DEVICE_ID, getDeviceName} from "./deviceIdentity.js";
 import { getPeerByName } from "./presence.js";
 import os from "os";
 
@@ -82,7 +82,7 @@ export async function sendFilesTool(input: {
         items,
         from: {
             deviceId: DEVICE_ID,
-            name: DEVICE_NAME,
+            name: getDeviceName(),
         },
         sender: {
             ip: LOCAL_IP,

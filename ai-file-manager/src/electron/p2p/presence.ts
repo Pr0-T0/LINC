@@ -1,6 +1,6 @@
 import { Bonjour } from "bonjour-service";
 import { log } from "../logger.js";
-import { DEVICE_ID, DEVICE_NAME } from "./deviceIdentity.js";
+import { DEVICE_ID, getDeviceName } from "./deviceIdentity.js";
 
 const bonjour = new Bonjour();
 
@@ -86,7 +86,7 @@ export function startLanPresence() {
   started = true;
 
   bonjour.publish({
-    name: DEVICE_NAME,
+    name: getDeviceName(),
     type: "p2p-transfer",
     protocol: "tcp",
     port: HTTP_PORT,

@@ -1,4 +1,4 @@
-import { DEVICE_ID, DEVICE_NAME } from "./deviceIdentity.js";
+import { DEVICE_ID, getDeviceName} from "./deviceIdentity.js";
 import express from "express";
 import cors from "cors";
 import fs from "fs";
@@ -32,7 +32,7 @@ export function startHttpServer() {
   app.get("/info", (_req, res) => {
     res.json({
       deviceId: DEVICE_ID,
-      name: DEVICE_NAME,
+      name: getDeviceName(),
       capabilities: ["send", "receive"],
       timestamp: Date.now(),
     });
