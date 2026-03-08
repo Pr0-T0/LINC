@@ -11,6 +11,14 @@ export interface AppSettings {
     roots: string[];
     exclude: string[];
   };
+
+  ui: {
+    showTerminal: boolean;
+  };
+
+  device: {
+    name: string;
+  };
 }
 
 // ---------------- Defaults ----------------
@@ -32,26 +40,33 @@ const DEFAULT_SETTINGS: AppSettings = {
       ".vscode",
     ],
   },
+
+  ui: {
+    showTerminal: true,
+  },
+
+  device: {
+    name: "My Device",
+  },
 };
 
-// Path Resolution 
+// ---------------- Paths ----------------
 let SETTINGS_PATH: string | null = null;
 
-//settings cache
+// ---------------- Cache ----------------
 let SETTINGS_CACHE: AppSettings | null = null;
 
+// ---------------- Resolve path ----------------
 function resolveSettingsPath(): string {
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = path.dirname(__filename);
 
   if (isDev()) {
-    // Development → project-root/data/settings.json
     const projectRoot = path.resolve(__dirname, "../");
     const devDataDir = path.join(projectRoot, "data");
     fs.mkdirSync(devDataDir, { recursive: true });
     return path.join(devDataDir, "settings.json");
   } else {
-    // Production → userData/data/settings.json
     const userDataPath = app.isReady()
       ? app.getPath("userData")
       : path.join(process.cwd(), "userdata_fallback");
@@ -70,71 +85,93 @@ function getSettingsPath(): string {
   return SETTINGS_PATH;
 }
 
-// ---------------- Load / Save ----------------
+// ---------------- Load ----------------
 export function loadSettings(): AppSettings {
   if (SETTINGS_CACHE) {
     return SETTINGS_CACHE;
   }
 
-
   const settingsPath = getSettingsPath();
 
   if (!fs.existsSync(settingsPath)) {
-    fs.writeFileSync(
-      settingsPath,
-      JSON.stringify(DEFAULT_SETTINGS, null, 2)
-    );
+    fs.writeFileSync(settingsPath, JSON.stringify(DEFAULT_SETTINGS, null, 2));
     SETTINGS_CACHE = DEFAULT_SETTINGS;
     console.log("[settings] created");
     return SETTINGS_CACHE;
   }
 
   try {
-    // SETTINGS_CACHE = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
-    // return SETTINGS_CACHE;
     const parsed = JSON.parse(
-    fs.readFileSync(settingsPath, "utf-8")
-  ) as Partial<AppSettings>;
+      fs.readFileSync(settingsPath, "utf-8")
+    ) as Partial<AppSettings>;
 
-  SETTINGS_CACHE = {
-    scan: {
-      roots: Array.isArray(parsed.scan?.roots)
-        ? parsed.scan!.roots
-        : DEFAULT_SETTINGS.scan.roots,
+    SETTINGS_CACHE = {
+      scan: {
+        roots: Array.isArray(parsed.scan?.roots)
+          ? parsed.scan!.roots
+          : DEFAULT_SETTINGS.scan.roots,
 
-      exclude: Array.isArray(parsed.scan?.exclude)
-        ? parsed.scan!.exclude
-        : DEFAULT_SETTINGS.scan.exclude,
-    },
-  };
+        exclude: Array.isArray(parsed.scan?.exclude)
+          ? parsed.scan!.exclude
+          : DEFAULT_SETTINGS.scan.exclude,
+      },
 
-  return SETTINGS_CACHE;
+      ui: {
+        showTerminal:
+          typeof parsed.ui?.showTerminal === "boolean"
+            ? parsed.ui.showTerminal
+            : DEFAULT_SETTINGS.ui.showTerminal,
+      },
+
+      device: {
+        name:
+          typeof parsed.device?.name === "string"
+            ? parsed.device.name
+            : DEFAULT_SETTINGS.device.name,
+      },
+    };
+
+    return SETTINGS_CACHE;
   } catch {
-    // Corrupt settings recovery
-    fs.writeFileSync(
-      settingsPath,
-      JSON.stringify(DEFAULT_SETTINGS, null, 2)
-    );
+    fs.writeFileSync(settingsPath, JSON.stringify(DEFAULT_SETTINGS, null, 2));
     console.warn("[settings] corrupted file reset");
+
     SETTINGS_CACHE = DEFAULT_SETTINGS;
-    return DEFAULT_SETTINGS;
+    return SETTINGS_CACHE;
   }
 }
 
+// ---------------- Save ----------------
 export function saveSettings(settings: AppSettings) {
   const settingsPath = getSettingsPath();
-  SETTINGS_CACHE = settings;
-  fs.writeFileSync(
-    settingsPath,
-    JSON.stringify(settings, null, 2)
-  );
+
+  SETTINGS_CACHE = {
+    scan: {
+      ...DEFAULT_SETTINGS.scan,
+      ...settings.scan,
+    },
+
+    ui: {
+      ...DEFAULT_SETTINGS.ui,
+      ...settings.ui,
+    },
+
+    device: {
+      ...DEFAULT_SETTINGS.device,
+      ...settings.device,
+    },
+  };
+
+  fs.writeFileSync(settingsPath, JSON.stringify(SETTINGS_CACHE, null, 2));
 }
 
+// ---------------- Getter ----------------
 export function getSettings(): AppSettings {
   if (!SETTINGS_CACHE) {
     throw new Error(
       "Settings not loaded. Call loadSettings() once in main()."
-    )
+    );
   }
+
   return SETTINGS_CACHE;
 }
