@@ -13,6 +13,8 @@ type Settings = {
   };
 };
 
+
+
 function App() {
   const [currentView, setCurrentView] = useState<
     "overview" | "files" | "peers" | "settings"
@@ -22,6 +24,7 @@ function App() {
   const [incomingOffer, setIncomingOffer] =
     useState<TransferOffer | null>(null);
 
+  const [resultVersion, setResultVersion] = useState(0);
   const [settings, setSettings] = useState<Settings | null>(null);
 
   useEffect(() => {
@@ -39,8 +42,14 @@ function App() {
   }, []);
 
   const handleAIOutput = (response: any) => {
-    setAIResult(response);
-    if (response?.kind === "files") {
+
+    if(!response) return;
+
+    const data = response.result ?? response;
+
+    setAIResult(data);
+    setResultVersion(v => v + 1);
+    if (data) {
       setCurrentView("files");
     }
   };
@@ -54,7 +63,7 @@ function App() {
       <div className="flex flex-1 overflow-hidden">
         <div className="flex-1 relative overflow-hidden">
           {currentView === "files" ? (
-            <FilesScreen aiResult={aiResult} />
+            <FilesScreen key={resultVersion} aiResult={aiResult} />
           ) : (
             <MainContent currentView={currentView} />
           )}

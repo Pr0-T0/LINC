@@ -443,10 +443,9 @@ export async function runAgent(userInput: string, sessionId: string) {
       if (parsed.purpose === "display") {
         const cached = resultCache.get(parsed.result_id) ?? [];
 
-        if (cached.length) {
-          aggregatedItems.push(...cached);
+        
+          aggregatedItems = [...cached];
           aggregatedKind = "files";
-        }
       }
     }
   }

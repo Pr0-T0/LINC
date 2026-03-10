@@ -23,12 +23,11 @@ export default function FilesScreen({
 }: {
   aiResult: AIResult | null;
 }) {
-  const [files, setFiles] = useState<FileItem[]>([]);
   const [message, setMessage] = useState("");
   const [typedMessage, setTypedMessage] = useState("");
   const [visible, setVisible] = useState(false);
 
-  // Safe Typewriter Animation
+  // Typewriter animation for AI message
   useEffect(() => {
     if (!message) {
       setTypedMessage("");
@@ -42,6 +41,7 @@ export default function FilesScreen({
     const interval = setInterval(() => {
       index++;
       setTypedMessage(message.slice(0, index));
+
       if (index >= message.length) {
         clearInterval(interval);
       }
@@ -52,15 +52,25 @@ export default function FilesScreen({
     return () => clearInterval(interval);
   }, [message]);
 
+  // Update message when new AI result arrives
+  useEffect(() => {
+    if (!aiResult) return;
+    setMessage(aiResult.message ?? "");
+  }, [aiResult]);
+
   const getFileIcon = (fileType: FileItem["file_type"]) => {
     if (fileType === "folder")
       return <Folder className="text-yellow-400" size={36} />;
+
     if (fileType === "pdf")
       return <File className="text-red-500" size={36} />;
+
     if (fileType === "excel")
       return <File className="text-green-500" size={36} />;
+
     if (fileType === "doc")
       return <File className="text-blue-500" size={36} />;
+
     return <FileText size={36} />;
   };
 
@@ -81,17 +91,11 @@ export default function FilesScreen({
         : undefined,
   });
 
-  useEffect(() => {
-    if (!aiResult) return;
-
-    setMessage(aiResult.message ?? "");
-
-    if (aiResult.kind === "files" && Array.isArray(aiResult.items)) {
-      setFiles(aiResult.items.map(mapAIItemToFileItem));
-    } else {
-      setFiles([]);
-    }
-  }, [aiResult]);
+  // Derive files directly from aiResult (prevents stale UI)
+  const files: FileItem[] =
+    aiResult?.kind === "files" && Array.isArray(aiResult.items)
+      ? aiResult.items.map(mapAIItemToFileItem)
+      : [];
 
   const isEmpty = files.length === 0;
 
@@ -111,7 +115,8 @@ export default function FilesScreen({
       <div
         className={`text-gray-200 text-lg font-medium mb-6 transition-opacity duration-500 ${
           visible ? "opacity-100" : "opacity-0"
-        } ${isEmpty ? "text-center" : ""}`}
+        } ${isEmpty ? "text-center" : ""}
+        `}
       >
         {typedMessage || "Ask the AI to find files"}
         <span className="typing-cursor">|</span>
@@ -129,7 +134,7 @@ export default function FilesScreen({
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {files.map((file, idx) => (
             <div
-              key={file.id}
+              key={`${file.id}-${idx}`}
               className="flex flex-col items-center p-2 rounded-lg cursor-pointer
                          hover:bg-zinc-800 transition opacity-0 scale-90 animate-appear"
               style={{
