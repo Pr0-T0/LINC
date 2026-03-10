@@ -15,6 +15,11 @@ const memory = new MemorySaver(); //defines the agent memory
 //   apiKey: process.env.GEMINI_API_KEY,
 // });
 
+const resultCache = new Map<string, any[]>();
+function generateResultId(){
+  return "res_" + Math.random().toString(36).slice(2, 10);
+}
+
 import { ChatOpenAI } from "@langchain/openai";
 
 const model = new ChatOpenAI({
@@ -27,16 +32,33 @@ const model = new ChatOpenAI({
 });
 
 
-
 const query_file_index = tool(
-  async ({ query , purpose }) => {
-    console.log("query_file_index called with:", query ,  purpose);
-    log("info","Searching Files..");
+  async ({ query, purpose }) => {
+    console.log("query_file_index called with:", query, purpose);
+    log("info", "Searching Files..");
 
     const rows = queryFiles(query);
     const result = normalizeSQLResult(rows);
 
-    return { result , purpose };
+    const resultId = generateResultId();
+
+    if (result.kind === "files") {
+      resultCache.set(resultId, result.items);
+    } else {
+      resultCache.set(resultId, []);
+    }
+    const preview = result.kind === "files" ? result.items.slice(0,5) : [];
+
+
+    return {
+      result_id: resultId,
+      purpose,
+      result: {
+        kind: result.kind,
+        count: result.kind === "files" ? result.items.length : 0,
+        preview
+      },
+    };
   },
   {
     name: "query_file_index",
@@ -53,9 +75,7 @@ const query_file_index = tool(
         sortOrder: z.enum(["asc", "desc"]).optional(),
         limit: z.number().optional(),
       }),
-      purpose: z.enum(["display", "resolve"]).describe(
-        "display = user-visible results, resolve = internal path lookup"
-      ),
+      purpose: z.enum(["display", "resolve"]),
     }),
   }
 );
@@ -421,9 +441,11 @@ export async function runAgent(userInput: string, sessionId: string) {
       const parsed = JSON.parse(msg.text);
 
       if (parsed.purpose === "display") {
-        if (parsed.result?.items?.length) {
-          aggregatedItems.push(...parsed.result.items);
-          aggregatedKind = parsed.result.kind;
+        const cached = resultCache.get(parsed.result_id) ?? [];
+
+        if (cached.length) {
+          aggregatedItems.push(...cached);
+          aggregatedKind = "files";
         }
       }
     }
